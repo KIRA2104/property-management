@@ -5,6 +5,7 @@ from typing import Optional
 from decimal import Decimal
 
 class PropertyBase(BaseModel):
+    name: str = Field(..., min_length=1)
     address: str = Field(..., min_length=5)
     description: Optional[str] = None
     monthly_rent: Decimal = Field(..., gt=0, decimal_places=2)
@@ -14,6 +15,7 @@ class PropertyCreate(PropertyBase):
     pass
 
 class PropertyUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1)
     address: Optional[str] = Field(None, min_length=5)
     description: Optional[str] = None
     monthly_rent: Optional[Decimal] = Field(None, gt=0, decimal_places=2)

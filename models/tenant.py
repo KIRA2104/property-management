@@ -1,7 +1,10 @@
 # pyrefly: ignore [missing-import]
 from sqlalchemy import Column, String
 
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
+
+# pyrefly: ignore [missing-import]
 from sqlalchemy import Uuid, ForeignKey
 from db.base import Base
 

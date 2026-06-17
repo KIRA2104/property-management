@@ -1,5 +1,7 @@
 # pyrefly: ignore [missing-import]
 from sqlalchemy import Column, String, Boolean
+
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
 from db.base import Base
 
