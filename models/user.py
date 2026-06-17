@@ -1,5 +1,6 @@
 # pyrefly: ignore [missing-import]
 from sqlalchemy import Column, String, Boolean
+from sqlalchemy.orm import relationship
 from db.base import Base
 
 
@@ -11,3 +12,8 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
+
+    properties = relationship("Property", back_populates="owner")
+    tenants = relationship("Tenant", back_populates="owner")
+    agreements = relationship("RentalAgreement", back_populates="owner")
+    payments = relationship("Payment", back_populates="owner")

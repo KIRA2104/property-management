@@ -20,6 +20,7 @@ class TenantUpdate(BaseModel):
 
 class TenantOut(TenantBase):
     id: UUID
+    owner_id: UUID
     created_at: datetime
     updated_at: datetime
     

@@ -21,15 +21,15 @@ async def create_agreement(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Verify property exists and is available
-    db_property = await get_or_404(db, Property, agreement_in.property_id)
+    # Verify property exists, is available, and belongs to user
+    db_property = await get_or_404(db, Property, agreement_in.property_id, owner_id=current_user.id)
     if not db_property.is_available:
         raise HTTPException(status_code=409, detail="Property is not available for rent")
         
-    # Verify tenant exists
-    await get_or_404(db, Tenant, agreement_in.tenant_id)
+    # Verify tenant exists and belongs to user
+    await get_or_404(db, Tenant, agreement_in.tenant_id, owner_id=current_user.id)
     
-    new_agreement = RentalAgreement(**agreement_in.model_dump())
+    new_agreement = RentalAgreement(**agreement_in.model_dump(), owner_id=current_user.id)
     db.add(new_agreement)
     
     # Mark property as unavailable
@@ -48,7 +48,10 @@ async def read_agreements(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = select(RentalAgreement).where(RentalAgreement.deleted_at == None).offset(skip).limit(limit)
+    query = select(RentalAgreement).where(
+        RentalAgreement.deleted_at == None,
+        RentalAgreement.owner_id == current_user.id
+    ).offset(skip).limit(limit)
     if property_id:
         query = query.where(RentalAgreement.property_id == property_id)
     if tenant_id:
@@ -63,7 +66,7 @@ async def read_agreement(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    return await get_or_404(db, RentalAgreement, id)
+    return await get_or_404(db, RentalAgreement, id, owner_id=current_user.id)
 
 @router.patch("/{id}", response_model=AgreementOut)
 async def update_agreement(
@@ -72,13 +75,13 @@ async def update_agreement(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    db_agreement = await get_or_404(db, RentalAgreement, id)
+    db_agreement = await get_or_404(db, RentalAgreement, id, owner_id=current_user.id)
     
     if agreement_in.status:
         db_agreement.status = agreement_in.status
         if agreement_in.status == AgreementStatus.terminated:
             # Mark property back as available
-            db_property = await get_or_404(db, Property, db_agreement.property_id)
+            db_property = await get_or_404(db, Property, db_agreement.property_id, owner_id=current_user.id)
             db_property.is_available = True
 
     await db.commit()
@@ -91,12 +94,12 @@ async def delete_agreement(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    db_agreement = await get_or_404(db, RentalAgreement, id)
+    db_agreement = await get_or_404(db, RentalAgreement, id, owner_id=current_user.id)
     db_agreement.deleted_at = datetime.now(timezone.utc)
     
     # If it was active, make property available again
     if db_agreement.status == AgreementStatus.active:
-        db_property = await get_or_404(db, Property, db_agreement.property_id)
+        db_property = await get_or_404(db, Property, db_agreement.property_id, owner_id=current_user.id)
         db_property.is_available = True
         
     await db.commit()

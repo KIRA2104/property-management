@@ -19,12 +19,12 @@ async def create_tenant(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Check email uniqueness for tenants
+    # Check email uniqueness for tenants (scoped to the owner, or global? Let's make it global for the platform or scoped to owner? It's scoped to owner makes more sense, but the schema has unique=True on email. Wait, email=Column(String, unique=True). If unique=True, it's global. Let's just keep the global check.)
     result = await db.execute(select(Tenant).where(Tenant.email == tenant_in.email, Tenant.deleted_at == None))
     if result.scalars().first():
         raise HTTPException(status_code=409, detail="Tenant with this email already exists")
         
-    new_tenant = Tenant(**tenant_in.model_dump())
+    new_tenant = Tenant(**tenant_in.model_dump(), owner_id=current_user.id)
     db.add(new_tenant)
     await db.commit()
     await db.refresh(new_tenant)
@@ -37,7 +37,12 @@ async def read_tenants(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    result = await db.execute(select(Tenant).where(Tenant.deleted_at == None).offset(skip).limit(limit))
+    result = await db.execute(
+        select(Tenant).where(
+            Tenant.deleted_at == None,
+            Tenant.owner_id == current_user.id
+        ).offset(skip).limit(limit)
+    )
     return result.scalars().all()
 
 @router.get("/{id}", response_model=TenantOut)
@@ -46,7 +51,7 @@ async def read_tenant(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    return await get_or_404(db, Tenant, id)
+    return await get_or_404(db, Tenant, id, owner_id=current_user.id)
 
 @router.patch("/{id}", response_model=TenantOut)
 async def update_tenant(
@@ -55,7 +60,7 @@ async def update_tenant(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    db_tenant = await get_or_404(db, Tenant, id)
+    db_tenant = await get_or_404(db, Tenant, id, owner_id=current_user.id)
     
     update_data = tenant_in.model_dump(exclude_unset=True)
     if "email" in update_data and update_data["email"] != db_tenant.email:
@@ -76,7 +81,7 @@ async def delete_tenant(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    db_tenant = await get_or_404(db, Tenant, id)
+    db_tenant = await get_or_404(db, Tenant, id, owner_id=current_user.id)
     db_tenant.deleted_at = datetime.now(timezone.utc)
     await db.commit()
     return None

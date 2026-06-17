@@ -19,7 +19,7 @@ async def create_property(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    new_property = Property(**property_in.model_dump())
+    new_property = Property(**property_in.model_dump(), owner_id=current_user.id)
     db.add(new_property)
     await db.commit()
     await db.refresh(new_property)
@@ -33,7 +33,10 @@ async def read_properties(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = select(Property).where(Property.deleted_at == None).offset(skip).limit(limit)
+    query = select(Property).where(
+        Property.deleted_at == None,
+        Property.owner_id == current_user.id
+    ).offset(skip).limit(limit)
     if is_available is not None:
         query = query.where(Property.is_available == is_available)
         
@@ -47,7 +50,7 @@ async def read_property(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    return await get_or_404(db, Property, id)
+    return await get_or_404(db, Property, id, owner_id=current_user.id)
 
 @router.put("/{id}", response_model=PropertyOut)
 async def update_property(
@@ -56,7 +59,7 @@ async def update_property(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    db_property = await get_or_404(db, Property, id)
+    db_property = await get_or_404(db, Property, id, owner_id=current_user.id)
     
     update_data = property_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -72,7 +75,7 @@ async def delete_property(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    db_property = await get_or_404(db, Property, id)
+    db_property = await get_or_404(db, Property, id, owner_id=current_user.id)
     db_property.deleted_at = datetime.now(timezone.utc)
     await db.commit()
     return None

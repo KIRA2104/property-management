@@ -48,8 +48,11 @@ async def get_current_superuser(
         )
     return current_user
 
-async def get_or_404(db: AsyncSession, model, id: UUID):
-    result = await db.execute(select(model).where(model.id == id, model.deleted_at == None))
+async def get_or_404(db: AsyncSession, model, id: UUID, owner_id: UUID = None):
+    query = select(model).where(model.id == id, model.deleted_at == None)
+    if owner_id is not None:
+        query = query.where(model.owner_id == owner_id)
+    result = await db.execute(query)
     obj = result.scalars().first()
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{model.__name__} not found")

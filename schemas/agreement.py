@@ -26,6 +26,7 @@ class AgreementUpdate(BaseModel):
 
 class AgreementOut(AgreementBase):
     id: UUID
+    owner_id: UUID
     created_at: datetime
     updated_at: datetime
     

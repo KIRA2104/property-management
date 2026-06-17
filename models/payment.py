@@ -29,5 +29,7 @@ class Payment(Base):
     notes = Column(String, nullable=True)
 
     status = Column(Enum(PaymentStatus), default=PaymentStatus.pending, nullable=False)
+    owner_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
+    owner = relationship("User", back_populates="payments")
     agreement = relationship("RentalAgreement", back_populates="payments")

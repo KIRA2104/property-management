@@ -35,7 +35,9 @@ class RentalAgreement(Base):
     status = Column(
         Enum(AgreementStatus), default=AgreementStatus.active, nullable=False
     )
+    owner_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
+    owner = relationship("User", back_populates="agreements")
     property = relationship("Property", back_populates="agreements")
     tenant = relationship("Tenant", back_populates="agreements")
     payments = relationship(

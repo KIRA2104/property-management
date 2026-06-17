@@ -23,6 +23,7 @@ class PaymentUpdate(BaseModel):
 
 class PaymentOut(PaymentBase):
     id: UUID
+    owner_id: UUID
     created_at: datetime
     updated_at: datetime
     

@@ -21,6 +21,7 @@ class PropertyUpdate(BaseModel):
 
 class PropertyOut(PropertyBase):
     id: UUID
+    owner_id: UUID
     created_at: datetime
     updated_at: datetime
     
