@@ -27,10 +27,11 @@ export function PropertiesPage() {
 
   const { data: properties = [], isLoading } = useQuery<Property[]>({
     queryKey: ['properties'],
-    queryFn: () => api.get('/properties/').then(res => res.data)
+    queryFn: () => api.get('/properties/').then(res => res.data.items)
   });
 
-  const filteredProperties = properties.filter(p => {
+  const safeProperties = Array.isArray(properties) ? properties : [];
+  const filteredProperties = safeProperties.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           p.address.toLowerCase().includes(searchQuery.toLowerCase());
     

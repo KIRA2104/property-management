@@ -35,7 +35,7 @@ interface Payment {
 interface Agreement {
   id: string;
   property_id: string;
-  tenant_id: string;
+  tenant_ids: string[];
   start_date: string;
   end_date: string;
   agreed_rent: number;
@@ -43,10 +43,22 @@ interface Agreement {
   status: 'active' | 'expired' | 'terminated';
 }
 
+interface RentCharge {
+  id: string;
+  agreement_id: string;
+  billing_month: string;
+  due_date: string;
+  rent_amount: number;
+  late_fee: number;
+  amount_paid: number;
+  status: 'upcoming' | 'due' | 'partial' | 'paid' | 'overdue';
+}
+
 interface DashboardData {
   properties: Property[];
   tenants: Tenant[];
   payments: Payment[];
+  rent_charges: RentCharge[];
 }
 
 export function DashboardPage() {
@@ -64,7 +76,7 @@ export function DashboardPage() {
 
   const { data: agreements = [] } = useQuery<Agreement[]>({
     queryKey: ['agreements'],
-    queryFn: () => api.get('/agreements/').then(res => res.data)
+    queryFn: () => api.get('/agreements/').then(res => res.data.items)
   });
 
   const createPropertyMutation = useMutation({
@@ -121,9 +133,10 @@ export function DashboardPage() {
     );
   }
 
-  const properties = data?.properties || [];
-  const tenants = data?.tenants || [];
-  const payments = data?.payments || [];
+  const properties = Array.isArray(data?.properties) ? data.properties : [];
+  const tenants = Array.isArray(data?.tenants) ? data.tenants : [];
+  const payments = Array.isArray(data?.payments) ? data.payments : [];
+  const rentCharges = Array.isArray(data?.rent_charges) ? data.rent_charges : [];
 
   // Calculations
   const totalProperties = properties.length;
@@ -138,9 +151,11 @@ export function DashboardPage() {
   const pendingPayments = payments.filter(p => p.status === 'pending');
   const failedPayments = payments.filter(p => p.status === 'failed');
 
-  const pendingRevenue = pendingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const overdueOrDueCharges = rentCharges.filter(rc => rc.status === 'overdue' || rc.status === 'due' || rc.status === 'partial');
+  const pendingRevenue = overdueOrDueCharges.reduce((sum, rc) => sum + (Number(rc.rent_amount) + Number(rc.late_fee) - Number(rc.amount_paid)), 0);
 
-  const expiringAgreements = agreements.filter(a => {
+  const safeAgreements = Array.isArray(agreements) ? agreements : [];
+  const expiringAgreements = safeAgreements.filter(a => {
     if (a.status !== 'active') return false;
     const endDate = new Date(a.end_date);
     const today = new Date();
@@ -254,7 +269,7 @@ export function DashboardPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" placeholder="+1 (555) 019-2834" value={tenantForm.phone_number} onChange={e => setTenantForm({...tenantForm, phone_number: e.target.value})} />
+                  <Input id="phone" type="tel" pattern="^[0-9]{10}$" title="Phone number must be exactly 10 digits" placeholder="e.g. 9876543210" value={tenantForm.phone_number} onChange={e => setTenantForm({...tenantForm, phone_number: e.target.value})} />
                 </div>
                 <Button type="submit" className="w-full mt-2" disabled={createTenantMutation.isPending}>
                   {createTenantMutation.isPending ? 'Saving...' : 'Save Tenant'}
@@ -288,12 +303,12 @@ export function DashboardPage() {
           <span className="text-3xl font-extrabold text-primary block">{totalTenants}</span>
           <span className="text-[10px] text-muted-foreground block">Registered leaseholders</span>
         </div>
-        {/* Pending Invoices */}
+        {/* Pending Bills */}
         <div className="space-y-2 md:pl-4">
           <span className="text-xs uppercase font-bold tracking-wider text-muted-foreground block">Pending Bills</span>
           <span className="text-3xl font-extrabold text-primary block">₹{pendingRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
           <span className="text-[10px] text-amber-500 font-semibold block flex items-center gap-1">
-            {pendingPayments.length > 0 ? `${pendingPayments.length} bills to verify` : 'All collections current'}
+            {overdueOrDueCharges.length > 0 ? `${overdueOrDueCharges.length} open charges` : 'All collections current'}
           </span>
         </div>
       </div>
@@ -392,7 +407,8 @@ export function DashboardPage() {
                       <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
                         {expiringAgreements.map(a => {
                           const prop = properties.find(p => p.id === a.property_id);
-                          const ten = tenants.find(t => t.id === a.tenant_id);
+                          const agreementTenants = tenants.filter(t => a.tenant_ids?.includes(t.id));
+                          const ten = agreementTenants.length > 0 ? agreementTenants[0] : null;
                           return `${prop?.name || 'Unit'} (${ten ? `${ten.first_name[0]}.${ten.last_name}` : 'Tenant'})`;
                         }).join(', ')} nearing end.
                       </p>

@@ -19,3 +19,4 @@ class User(Base):
     tenants = relationship("Tenant", back_populates="owner")
     agreements = relationship("RentalAgreement", back_populates="owner")
     payments = relationship("Payment", back_populates="owner")
+    rent_charges = relationship("RentCharge", back_populates="owner")

@@ -7,7 +7,7 @@ from models.agreement import AgreementStatus
 
 class AgreementBase(BaseModel):
     property_id: UUID
-    tenant_id: UUID
+    tenant_ids: list[UUID]
     start_date: date
     end_date: date
     agreed_rent: Decimal = Field(..., gt=0, decimal_places=2)

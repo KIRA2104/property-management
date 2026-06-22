@@ -23,6 +23,11 @@ class Payment(Base):
     )
 
     amount = Column(Numeric(12, 2), nullable=False)
+    rent_charge_id = Column(
+        Uuid(as_uuid=True),
+        ForeignKey("rent_charges.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     payment_date = Column(Date, nullable=False)
     payment_method = Column(String, nullable=True)
     reference_number = Column(String, nullable=True)
@@ -33,3 +38,4 @@ class Payment(Base):
 
     owner = relationship("User", back_populates="payments")
     agreement = relationship("RentalAgreement", back_populates="payments")
+    rent_charge = relationship("RentCharge", back_populates="payments")

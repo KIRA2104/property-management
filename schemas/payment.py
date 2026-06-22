@@ -7,6 +7,7 @@ from models.payment import PaymentStatus
 
 class PaymentBase(BaseModel):
     agreement_id: UUID
+    rent_charge_id: Optional[UUID] = None
     amount: Decimal = Field(..., gt=0, decimal_places=2)
     payment_date: date
     payment_method: Optional[str] = None

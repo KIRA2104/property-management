@@ -11,6 +11,7 @@ import api from '@/services/api';
 
 import type { Property } from './PropertiesPage';
 import type { Agreement } from './AgreementsPage';
+import type { Tenant } from './TenantsPage';
 
 export interface Payment {
   id: string;
@@ -43,27 +44,38 @@ export function PaymentsPage() {
 
   const { data: payments = [], isLoading: isLoadingPayments } = useQuery<Payment[]>({
     queryKey: ['payments'],
-    queryFn: () => api.get('/payments/').then(res => res.data)
+    queryFn: () => api.get('/payments/').then(res => res.data.items)
   });
 
   const { data: agreements = [] } = useQuery<Agreement[]>({
     queryKey: ['agreements'],
-    queryFn: () => api.get('/agreements/').then(res => res.data)
+    queryFn: () => api.get('/agreements/').then(res => res.data.items)
   });
 
   const { data: properties = [] } = useQuery<Property[]>({
     queryKey: ['properties'],
-    queryFn: () => api.get('/properties/').then(res => res.data)
+    queryFn: () => api.get('/properties/').then(res => res.data.items)
   });
 
-  const filteredPayments = payments.filter(p => {
-    const agreement = agreements.find(a => a.id === p.agreement_id);
+  const { data: tenants = [] } = useQuery<Tenant[]>({
+    queryKey: ['tenants'],
+    queryFn: () => api.get('/tenants/').then(res => res.data.items)
+  });
+
+  const safePayments = Array.isArray(payments) ? payments : [];
+  const filteredPayments = safePayments.filter(p => {
+    const agreement = Array.isArray(agreements) ? agreements.find(a => a.id === p.agreement_id) : null;
     const property = agreement ? properties.find(pr => pr.id === agreement.property_id) : null;
     const propertyName = property?.name.toLowerCase() || '';
     const paymentMethod = p.payment_method?.toLowerCase() || '';
+    
+    // We can show any tenant name connected to this agreement
+    const agreementTenants = agreement ? tenants.filter(t => agreement.tenant_ids.includes(t.id)) : [];
+    const tenantNames = agreementTenants.map(t => `${t.first_name} ${t.last_name}`).join(' ').toLowerCase();
+    
     const query = searchQuery.toLowerCase();
     
-    const matchesSearch = propertyName.includes(query) || paymentMethod.includes(query);
+    const matchesSearch = propertyName.includes(query) || paymentMethod.includes(query) || tenantNames.includes(query);
     
     if (statusFilter !== 'all') {
       return matchesSearch && p.status === statusFilter;
@@ -176,15 +188,27 @@ export function PaymentsPage() {
                   id="agreement_id" 
                   className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   value={formData.agreement_id} 
-                  onChange={e => setFormData({...formData, agreement_id: e.target.value})} 
+                  onChange={e => {
+                    const newAgrId = e.target.value;
+                    const agr = agreements.find(a => a.id === newAgrId);
+                    if (agr) {
+                      const totalPaid = payments.filter(p => p.agreement_id === agr.id && p.status === 'confirmed').reduce((sum, p) => sum + Number(p.amount), 0);
+                      const balance = Math.max(0, agr.agreed_rent - totalPaid);
+                      setFormData({...formData, agreement_id: newAgrId, amount: balance > 0 ? balance.toString() : ''});
+                    } else {
+                      setFormData({...formData, agreement_id: newAgrId});
+                    }
+                  }} 
                   required
                 >
                   <option value="">Select Agreement</option>
                   {agreements.map(a => {
                     const prop = properties.find(p => p.id === a.property_id);
+                    const totalPaid = payments.filter(p => p.agreement_id === a.id && p.status === 'confirmed').reduce((sum, p) => sum + Number(p.amount), 0);
+                    const balance = Math.max(0, a.agreed_rent - totalPaid);
                     return (
                       <option key={a.id} value={a.id}>
-                        Agreement for {prop?.name || 'Unknown Property'}
+                        Agreement for {prop?.name || 'Unknown Property'} (Balance: ₹{balance.toLocaleString(undefined, { minimumFractionDigits: 2 })})
                       </option>
                     )
                   })}
@@ -264,7 +288,7 @@ export function PaymentsPage() {
                 </span>
                 <Input 
                   type="text" 
-                  placeholder="Search payments (property/method)..." 
+                  placeholder="Search payments (property/tenant/method)..." 
                   value={searchQuery} 
                   onChange={e => setSearchQuery(e.target.value)} 
                   className="pl-9 w-full"
@@ -296,7 +320,7 @@ export function PaymentsPage() {
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
                       <TableHead>Property</TableHead>
-                      <TableHead>Method</TableHead>
+                      <TableHead>Tenants</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead>Status</TableHead>
@@ -305,12 +329,16 @@ export function PaymentsPage() {
                   </TableHeader>
                   <TableBody>
                     {filteredPayments.map((p) => {
-                      const agr = agreements.find(a => a.id === p.agreement_id);
-                      const prop = agr ? properties.find(pr => pr.id === agr.property_id) : null;
+                      const agr = Array.isArray(agreements) ? agreements.find(a => a.id === p.agreement_id) : null;
+                      const prop = Array.isArray(properties) ? properties.find(pr => pr.id === agr?.property_id) : null;
+                      const agreementTenants = agr ? tenants.filter(t => agr.tenant_ids.includes(t.id)) : [];
+                      
                       return (
                         <TableRow key={p.id} className="hover:bg-muted/10 group">
                           <TableCell className="font-semibold text-foreground">{prop?.name || 'Property'}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{p.payment_method || 'Bank Transfer'}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {agreementTenants.length > 0 ? agreementTenants.map(t => `${t.first_name} ${t.last_name}`).join(', ') : 'Unknown'}
+                          </TableCell>
                           <TableCell>{new Date(p.payment_date).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right font-extrabold text-emerald-600 dark:text-emerald-400">
                             +₹{Number(p.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}

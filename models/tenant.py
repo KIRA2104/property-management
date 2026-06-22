@@ -14,9 +14,9 @@ class Tenant(Base):
 
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
-    email = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, index=True, nullable=False)
     phone_number = Column(String, nullable=True)
     owner_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
     owner = relationship("User", back_populates="tenants")
-    agreements = relationship("RentalAgreement", back_populates="tenant")
+    agreements = relationship("RentalAgreement", secondary="agreement_tenants", back_populates="tenants")

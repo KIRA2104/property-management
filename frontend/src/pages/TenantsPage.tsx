@@ -26,10 +26,11 @@ export function TenantsPage() {
 
   const { data: tenants = [], isLoading } = useQuery<Tenant[]>({
     queryKey: ['tenants'],
-    queryFn: () => api.get('/tenants/').then(res => res.data)
+    queryFn: () => api.get('/tenants/').then(res => res.data.items)
   });
 
-  const filteredTenants = tenants.filter(t => {
+  const safeTenants = Array.isArray(tenants) ? tenants : [];
+  const filteredTenants = safeTenants.filter(t => {
     const fullName = `${t.first_name} ${t.last_name}`.toLowerCase();
     const query = searchQuery.toLowerCase();
     return fullName.includes(query) || 
@@ -94,7 +95,19 @@ export function TenantsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: e.target.value})} />
+                <Input 
+                  id="phone" 
+                  type="tel" 
+                  pattern="^[0-9]{10}$" 
+                  maxLength={10}
+                  title="Phone number must be exactly 10 digits" 
+                  placeholder="e.g. 9876543210" 
+                  value={formData.phone_number} 
+                  onChange={e => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    setFormData({...formData, phone_number: val});
+                  }} 
+                />
               </div>
               <Button type="submit" className="w-full" disabled={createMutation.isPending}>
                 {createMutation.isPending ? 'Saving...' : 'Save Tenant'}
