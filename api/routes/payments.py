@@ -38,7 +38,7 @@ async def create_payment(
 
     new_payment = Payment(**payment_in.model_dump(), owner_id=current_user.id)
 
-    if payment_in.rent_charge_id and payment_in.status == PaymentStatus.completed:
+    if payment_in.rent_charge_id and payment_in.status == PaymentStatus.confirmed:
         rent_charge = await get_or_404(
             db, RentCharge, payment_in.rent_charge_id, owner_id=current_user.id
         )
@@ -99,8 +99,8 @@ async def update_payment_status(
     if payment_in.status:
         db_payment.status = payment_in.status
         if (
-            old_status != PaymentStatus.completed
-            and payment_in.status == PaymentStatus.completed
+            old_status != PaymentStatus.confirmed
+            and payment_in.status == PaymentStatus.confirmed
             and db_payment.rent_charge_id
         ):
             rent_charge = await get_or_404(

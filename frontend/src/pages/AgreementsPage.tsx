@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, FileText, Trash2, ShieldAlert } from 'lucide-react';
+import { Plus, FileText, Trash2, ShieldAlert, Pencil } from 'lucide-react';
 import api from '@/services/api';
 
 import type { Property } from './PropertiesPage';
@@ -27,6 +27,7 @@ export interface Agreement {
 export function AgreementsPage() {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
+  const [editAgreement, setEditAgreement] = useState<Agreement | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,6 +40,14 @@ export function AgreementsPage() {
     end_date: '',
     agreed_rent: '',
     deposit: '0'
+  });
+  const [editForm, setEditForm] = useState({
+    tenant_ids: [] as string[],
+    start_date: '',
+    end_date: '',
+    agreed_rent: '',
+    deposit: '',
+    status: 'active' as Agreement['status']
   });
 
   const { data: agreements = [], isLoading: isLoadingAgreements } = useQuery<Agreement[]>({
@@ -97,6 +106,42 @@ export function AgreementsPage() {
       setDeleteId(null);
     }
   });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Omit<typeof editForm, 'agreed_rent' | 'deposit'> & { agreed_rent: number; deposit: number } }) =>
+      api.patch(`/agreements/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agreements'] });
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setEditAgreement(null);
+    }
+  });
+
+  const openEditDialog = (agreement: Agreement) => {
+    setEditAgreement(agreement);
+    setEditForm({
+      tenant_ids: [...agreement.tenant_ids],
+      start_date: agreement.start_date,
+      end_date: agreement.end_date,
+      agreed_rent: String(agreement.agreed_rent),
+      deposit: String(agreement.deposit),
+      status: agreement.status
+    });
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editAgreement) return;
+    updateMutation.mutate({
+      id: editAgreement.id,
+      data: {
+        ...editForm,
+        agreed_rent: parseFloat(editForm.agreed_rent),
+        deposit: parseFloat(editForm.deposit)
+      }
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -314,6 +359,15 @@ export function AgreementsPage() {
                           </span>
                         </TableCell>
                         <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="rounded-xl opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                            onClick={() => openEditDialog(a)}
+                            aria-label="Edit agreement"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
                           <Button 
                             variant="ghost" 
                             size="icon" 
@@ -333,6 +387,99 @@ export function AgreementsPage() {
           </>
         )}
       </div>
+
+      <Dialog open={!!editAgreement} onOpenChange={(open) => !open && setEditAgreement(null)}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Edit Rental Agreement</DialogTitle>
+            <DialogDescription>
+              Paid billing history is preserved; changes apply to unpaid rent charges.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Property</Label>
+              <Input
+                value={properties.find(p => p.id === editAgreement?.property_id)?.name || 'Property'}
+                disabled
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Tenants</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value=""
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (id && !editForm.tenant_ids.includes(id)) {
+                    setEditForm({ ...editForm, tenant_ids: [...editForm.tenant_ids, id] });
+                  }
+                }}
+              >
+                <option value="">Select a tenant to add</option>
+                {tenants.filter(t => !editForm.tenant_ids.includes(t.id)).map(t => (
+                  <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>
+                ))}
+              </select>
+              <div className="flex flex-wrap gap-2">
+                {editForm.tenant_ids.map(id => {
+                  const tenant = tenants.find(t => t.id === id);
+                  return tenant ? (
+                    <span key={id} className="bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                      {tenant.first_name} {tenant.last_name}
+                      <button
+                        type="button"
+                        disabled={editForm.tenant_ids.length === 1}
+                        onClick={() => setEditForm({ ...editForm, tenant_ids: editForm.tenant_ids.filter(tenantId => tenantId !== id) })}
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                      >×</button>
+                    </span>
+                  ) : null;
+                })}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit_start_date">Start Date</Label>
+                <Input id="edit_start_date" type="date" value={editForm.start_date} onChange={e => setEditForm({...editForm, start_date: e.target.value})} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_end_date">End Date</Label>
+                <Input id="edit_end_date" type="date" value={editForm.end_date} onChange={e => setEditForm({...editForm, end_date: e.target.value})} required />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit_rent">Rent Amount (₹)</Label>
+                <Input id="edit_rent" type="number" min="0.01" step="0.01" value={editForm.agreed_rent} onChange={e => setEditForm({...editForm, agreed_rent: e.target.value})} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_deposit">Security Deposit (₹)</Label>
+                <Input id="edit_deposit" type="number" min="0" step="0.01" value={editForm.deposit} onChange={e => setEditForm({...editForm, deposit: e.target.value})} required />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_status">Status</Label>
+              <select
+                id="edit_status"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={editForm.status}
+                onChange={e => setEditForm({...editForm, status: e.target.value as Agreement['status']})}
+              >
+                <option value="active">Active</option>
+                <option value="expired">Expired</option>
+                <option value="terminated">Terminated</option>
+              </select>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditAgreement(null)}>Cancel</Button>
+              <Button type="submit" disabled={updateMutation.isPending || editForm.tenant_ids.length === 0}>
+                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirmation Modal */}
       <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>

@@ -1,5 +1,5 @@
 # pyrefly: ignore [missing-import]
-from sqlalchemy import Column, Date, String, Numeric, ForeignKey, Enum, Uuid
+from sqlalchemy import Column, Date, String, Numeric, ForeignKey, Enum, Uuid, DateTime
 
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
@@ -35,6 +35,7 @@ class Payment(Base):
 
     status = Column(Enum(PaymentStatus), default=PaymentStatus.pending, nullable=False)
     owner_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     owner = relationship("User", back_populates="payments")
     agreement = relationship("RentalAgreement", back_populates="payments")

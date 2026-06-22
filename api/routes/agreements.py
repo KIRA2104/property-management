@@ -113,8 +113,14 @@ async def create_agreement(
         current_d = add_months(current_d, 1)
 
     await db.commit()
-    await db.refresh(new_agreement)
-    return new_agreement
+    
+    # Reload with tenants
+    result = await db.execute(
+        select(RentalAgreement)
+        .options(selectinload(RentalAgreement.tenants))
+        .where(RentalAgreement.id == new_agreement.id)
+    )
+    return result.scalars().first()
 
 
 @router.get("/", response_model=PaginatedResponse[AgreementOut])
@@ -189,27 +195,85 @@ async def update_agreement(
         raise HTTPException(status_code=404, detail="Agreement not found")
 
     update_data = agreement_in.model_dump(exclude_unset=True)
+    tenant_ids = update_data.pop("tenant_ids", None)
+    new_status = update_data.pop("status", None)
+
+    effective_start = update_data.get("start_date", db_agreement.start_date)
+    effective_end = update_data.get("end_date", db_agreement.end_date)
+    if effective_end <= effective_start:
+        raise HTTPException(status_code=422, detail="end_date must be after start_date")
+
+    if tenant_ids is not None:
+        if not tenant_ids:
+            raise HTTPException(status_code=422, detail="At least one tenant is required")
+        db_agreement.tenants = [
+            await get_or_404(db, Tenant, tenant_id, owner_id=current_user.id)
+            for tenant_id in tenant_ids
+        ]
+
     for field, value in update_data.items():
         setattr(db_agreement, field, value)
 
-    if agreement_in.status:
+    # Keep unpaid rent charges aligned with edited dates and rent. Charges that
+    # already have payments are retained as financial history.
+    charge_result = await db.execute(
+        select(RentCharge).where(
+            RentCharge.agreement_id == db_agreement.id,
+            RentCharge.owner_id == current_user.id,
+            RentCharge.deleted_at == None,
+        )
+    )
+    existing_charges = charge_result.scalars().all()
+    desired_dates = {}
+    charge_date = effective_start
+    while charge_date <= effective_end:
+        desired_dates[charge_date.strftime("%Y-%m")] = charge_date
+        charge_date = add_months(charge_date, 1)
+
+    rent_amount = update_data.get("agreed_rent", db_agreement.agreed_rent)
+    for charge in existing_charges:
+        desired_date = desired_dates.pop(charge.billing_month, None)
+        if desired_date is not None:
+            if charge.amount_paid == 0:
+                charge.due_date = desired_date
+                charge.rent_amount = rent_amount
+        elif charge.amount_paid == 0:
+            charge.deleted_at = datetime.now(timezone.utc)
+
+    for billing_month, due_date in desired_dates.items():
+        db.add(
+            RentCharge(
+                agreement_id=db_agreement.id,
+                billing_month=billing_month,
+                due_date=due_date,
+                rent_amount=rent_amount,
+                owner_id=current_user.id,
+            )
+        )
+
+    if new_status:
+        db_agreement.status = new_status
         if (
-            agreement_in.status == AgreementStatus.terminated
-            or agreement_in.status == AgreementStatus.expired
+            new_status == AgreementStatus.terminated
+            or new_status == AgreementStatus.expired
         ):
             db_property = await get_or_404(
                 db, Property, db_agreement.property_id, owner_id=current_user.id
             )
             db_property.is_available = True
-        elif agreement_in.status == AgreementStatus.active:
+        elif new_status == AgreementStatus.active:
             db_property = await get_or_404(
                 db, Property, db_agreement.property_id, owner_id=current_user.id
             )
             db_property.is_available = False
 
     await db.commit()
-    await db.refresh(db_agreement)
-    return db_agreement
+    result = await db.execute(
+        select(RentalAgreement)
+        .options(selectinload(RentalAgreement.tenants))
+        .where(RentalAgreement.id == db_agreement.id)
+    )
+    return result.scalars().first()
 
 
 @router.post("/{id}/terminate", response_model=AgreementOut)

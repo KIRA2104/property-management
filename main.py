@@ -72,6 +72,21 @@ async def integrity_error_handler(request: Request, exc: IntegrityError):
     )
 
 
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    print("REQUEST VALIDATION ERROR:", exc.errors())
+    print("BODY:", exc.body)
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+from fastapi.exceptions import ResponseValidationError
+@app.exception_handler(ResponseValidationError)
+async def response_validation_exception_handler(request, exc):
+    print("RESPONSE VALIDATION ERROR:", exc.errors())
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
 app.include_router(api_router)
 
 # Mount static files
@@ -84,7 +99,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.get("/", response_class=HTMLResponse, tags=["frontend"])
 async def serve_frontend():
     with open("static/index.html", "r") as f:
-        return f.read()
+        return HTMLResponse(
+            content=f.read(),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
 
 
 @app.get("/health")
