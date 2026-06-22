@@ -7,10 +7,10 @@ class TenantBase(BaseModel):
     first_name: str = Field(..., min_length=1)
     last_name: str = Field(..., min_length=1)
     email: EmailStr
-    phone_number: Optional[str] = Field(None, pattern=r"^\d{10}$")
+    phone_number: Optional[str] = None
 
 class TenantCreate(TenantBase):
-    pass
+    phone_number: Optional[str] = Field(None, pattern=r"^\d{10}$")
 
 class TenantUpdate(BaseModel):
     first_name: Optional[str] = Field(None, min_length=1)
