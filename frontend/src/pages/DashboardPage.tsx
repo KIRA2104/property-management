@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import api from '@/services/api';
 
 interface Property {
@@ -354,6 +355,80 @@ export function DashboardPage() {
                 })
               )}
             </div>
+          </div>
+
+          {/* Monthly Rent Status per Property */}
+          <div className="space-y-4 pt-4">
+            <div>
+              <h3 className="text-lg font-bold text-foreground">Monthly Rent Status</h3>
+              <p className="text-xs text-muted-foreground">Breakdown of rent collections per property by month.</p>
+            </div>
+            
+            {rentCharges.length === 0 ? (
+              <div className="border-dashed border-2 border-muted bg-muted/5 flex flex-col items-center justify-center p-8 text-center space-y-3 rounded-2xl">
+                <FileText className="h-10 w-10 opacity-30 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">No rent charges generated yet. Create an agreement to see monthly breakdowns.</span>
+              </div>
+            ) : (
+              <div className="bg-card/20 backdrop-blur-sm border border-border/20 rounded-2xl overflow-hidden shadow-sm overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Property</TableHead>
+                      <TableHead>Month</TableHead>
+                      <TableHead className="text-right">Rent Due</TableHead>
+                      <TableHead className="text-right">Paid</TableHead>
+                      <TableHead className="text-right">Remaining</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[...rentCharges].sort((a, b) => {
+                      if (b.billing_month !== a.billing_month) return b.billing_month.localeCompare(a.billing_month);
+                      const propA = properties.find(p => p.id === safeAgreements.find(agr => agr.id === a.agreement_id)?.property_id)?.name || '';
+                      const propB = properties.find(p => p.id === safeAgreements.find(agr => agr.id === b.agreement_id)?.property_id)?.name || '';
+                      return propA.localeCompare(propB);
+                    }).map(charge => {
+                      const agreement = safeAgreements.find(a => a.id === charge.agreement_id);
+                      const property = properties.find(p => p.id === agreement?.property_id);
+                      const propName = property?.name || 'Unknown Property';
+                      const totalDue = Number(charge.rent_amount) + Number(charge.late_fee);
+                      const paid = Number(charge.amount_paid);
+                      const remaining = Math.max(0, totalDue - paid);
+                      
+                      let statusBadge = null;
+                      switch(charge.status) {
+                        case 'paid':
+                          statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400 uppercase">Paid</span>;
+                          break;
+                        case 'partial':
+                          statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-400 uppercase">Partial</span>;
+                          break;
+                        case 'due':
+                          statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-400 uppercase">Due</span>;
+                          break;
+                        case 'overdue':
+                          statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-destructive/10 text-destructive dark:bg-destructive/20 uppercase">Overdue</span>;
+                          break;
+                        default:
+                          statusBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground uppercase">{charge.status}</span>;
+                      }
+
+                      return (
+                        <TableRow key={charge.id} className="hover:bg-muted/10">
+                          <TableCell className="font-semibold">{propName}</TableCell>
+                          <TableCell>{charge.billing_month}</TableCell>
+                          <TableCell className="text-right font-medium">₹{totalDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-right text-emerald-600 dark:text-emerald-400 font-medium">₹{paid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-right font-bold text-amber-600 dark:text-amber-400">₹{remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell>{statusBadge}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </div>
 
           {/* Empty States CTA */}
