@@ -1,5 +1,6 @@
 # pyrefly: ignore [missing-import]
 from sqlalchemy import Column, Date, Numeric, ForeignKey, Enum, Uuid, Table
+import builtins
 
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
@@ -50,6 +51,6 @@ class RentalAgreement(Base):
         "RentCharge", back_populates="agreement", cascade="all, delete-orphan"
     )
 
-    @property
+    @builtins.property
     def tenant_ids(self):
         return [t.id for t in self.tenants]
