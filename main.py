@@ -1,5 +1,6 @@
 # pyrefly: ignore [missing-import]
 from fastapi import FastAPI, Request
+import os
 
 # pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,12 @@ from fastapi.responses import JSONResponse, HTMLResponse
 
 # pyrefly: ignore [missing-import]
 from fastapi.staticfiles import StaticFiles
+
+# pyrefly: ignore [missing-import]
+from fastapi.exceptions import RequestValidationError
+
+# pyrefly: ignore [missing-import]
+from fastapi.exceptions import ResponseValidationError
 
 # pyrefly: ignore [missing-import]
 from sqlalchemy.exc import IntegrityError
@@ -25,6 +32,9 @@ from slowapi.middleware import SlowAPIMiddleware
 from core.config import settings
 from core.rate_limit import limiter
 from api.routes import api_router
+
+# pyrefly: ignore [missing-import]
+from fastapi.exceptions import ResponseValidationError
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -72,25 +82,21 @@ async def integrity_error_handler(request: Request, exc: IntegrityError):
     )
 
 
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
     print("REQUEST VALIDATION ERROR:", exc.errors())
     print("BODY:", exc.body)
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
-from fastapi.exceptions import ResponseValidationError
+
 @app.exception_handler(ResponseValidationError)
 async def response_validation_exception_handler(request, exc):
     print("RESPONSE VALIDATION ERROR:", exc.errors())
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
+
 app.include_router(api_router)
 
-# Mount static files
-import os
 
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
