@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building, CreditCard, Plus, Calendar, AlertTriangle, FileText, CheckCircle2, XCircle } from 'lucide-react';
+import { Building, CreditCard, Plus, Calendar, AlertTriangle, FileText, CheckCircle2, XCircle, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -97,6 +97,16 @@ export function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       setIsTenantModalOpen(false);
       setTenantForm({ first_name: '', last_name: '', email: '', phone_number: '' });
+    }
+  });
+
+  const triggerRemindersMutation = useMutation({
+    mutationFn: () => api.post('/dashboard/trigger-reminders').then(res => res.data),
+    onSuccess: (data) => {
+      alert(data.message || 'Reminders sent successfully!');
+    },
+    onError: () => {
+      alert('Failed to send reminders. Please try again.');
     }
   });
 
@@ -211,6 +221,17 @@ export function DashboardPage() {
 
         {/* Quick Actions */}
         <div className="flex gap-2">
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="h-10 hover:scale-105 transition-all bg-indigo-600 hover:bg-indigo-700 text-white"
+            onClick={() => triggerRemindersMutation.mutate()}
+            disabled={triggerRemindersMutation.isPending}
+          >
+            <Mail className="mr-2 h-4 w-4" /> 
+            {triggerRemindersMutation.isPending ? 'Sending...' : 'Send Reminders'}
+          </Button>
+
           <Dialog open={isPropertyModalOpen} onOpenChange={setIsPropertyModalOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="h-10 hover:scale-105 transition-all">

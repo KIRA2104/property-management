@@ -1,5 +1,5 @@
 # pyrefly: ignore [missing-import]
-from sqlalchemy import Column, Date, String, Numeric, ForeignKey, Enum, Uuid
+from sqlalchemy import Column, Date, String, Numeric, ForeignKey, Enum, Uuid, DateTime
 
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
@@ -31,6 +31,7 @@ class RentCharge(Base):
     amount_paid = Column(Numeric(12, 2), nullable=False, default=0)
 
     status = Column(Enum(RentChargeStatus), default=RentChargeStatus.upcoming, nullable=False)
+    reminder_sent_at = Column(DateTime(timezone=True), nullable=True)
     owner_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
     owner = relationship("User", back_populates="rent_charges")

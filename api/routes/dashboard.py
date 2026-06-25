@@ -14,6 +14,9 @@ from models.rent_charge import RentCharge
 from models.user import User
 from schemas.dashboard import DashboardData
 from api.deps import get_current_user
+from tasks.scheduler import process_rent_reminders
+from sqlalchemy.ext.asyncio import AsyncSession
+from api.deps import get_db
 
 router = APIRouter()
 
@@ -68,4 +71,14 @@ async def get_dashboard(current_user: User = Depends(get_current_user)):
         "tenants": tenants,
         "payments": payments,
         "rent_charges": rent_charges,
+    }
+
+
+@router.post("/trigger-reminders")
+async def trigger_reminders(
+    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
+    emails_sent = await process_rent_reminders(db, current_user.id)
+    return {
+        "message": f"Manual trigger complete. {emails_sent} reminder emails sent to your tenants."
     }
