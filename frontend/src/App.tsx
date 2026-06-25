@@ -13,6 +13,7 @@ const PropertiesPage = lazy(() => import('@/pages/PropertiesPage').then(m => ({ 
 const TenantsPage = lazy(() => import('@/pages/TenantsPage').then(m => ({ default: m.TenantsPage })));
 const AgreementsPage = lazy(() => import('@/pages/AgreementsPage').then(m => ({ default: m.AgreementsPage })));
 const PaymentsPage = lazy(() => import('@/pages/PaymentsPage').then(m => ({ default: m.PaymentsPage })));
+const TenantPaymentPage = lazy(() => import('@/pages/TenantPaymentPage'));
 
 // Loading skeleton fallback for page lazy loading
 function PageSkeleton() {
@@ -52,6 +53,7 @@ function AppRoutes() {
     <Suspense fallback={<PageSkeleton />}>
       <Routes>
         <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <AuthPage />} />
+        <Route path="/pay/:agreementId" element={<TenantPaymentPage />} />
         
         <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
@@ -67,15 +69,21 @@ function AppRoutes() {
   );
 }
 
+import { GoogleOAuthProvider } from '@react-oauth/google';
+
 function App() {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Router>
-          <AppRoutes />
-        </Router>
-      </AuthProvider>
-    </QueryClientProvider>
+    <GoogleOAuthProvider clientId={clientId}>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <Router>
+            <AppRoutes />
+          </Router>
+        </AuthProvider>
+      </QueryClientProvider>
+    </GoogleOAuthProvider>
   );
 }
 

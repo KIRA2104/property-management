@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Building, Eye, EyeOff, Lock, Mail, User, ShieldAlert } from 'lucide-react';
+import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import api from '@/services/api';
 
 const loginSchema = z.object({
@@ -86,6 +87,24 @@ export function AuthPage() {
     } catch (err: unknown) {
       const e = err as { response?: { data?: { detail?: string } } };
       setApiError(e.response?.data?.detail || 'An error occurred during registration.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onGoogleLogin = async (response: CredentialResponse) => {
+    setApiError('');
+    setIsLoading(true);
+    try {
+      if (response.credential) {
+        const res = await api.post('/auth/google', {
+          credential: response.credential
+        });
+        login(res.data.access_token);
+      }
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      setApiError(e.response?.data?.detail || 'Google Login failed.');
     } finally {
       setIsLoading(false);
     }
@@ -248,6 +267,28 @@ export function AuthPage() {
               </Button>
             </form>
           )}
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-muted-foreground/20" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground font-semibold">Or continue with</span>
+            </div>
+          </div>
+          
+          <div className="flex justify-center w-full">
+            <GoogleLogin
+              onSuccess={onGoogleLogin}
+              onError={() => {
+                setApiError('Google Login failed.');
+              }}
+              useOneTap
+              theme="filled_blue"
+              shape="rectangular"
+              text={isLogin ? 'signin_with' : 'signup_with'}
+            />
+          </div>
         </CardContent>
 
         <CardFooter className="flex flex-col space-y-4 border-t pt-4">

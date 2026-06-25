@@ -39,7 +39,8 @@ export function PaymentsPage() {
     payment_date: new Date().toISOString().split('T')[0],
     payment_method: 'Bank Transfer',
     status: 'confirmed' as 'pending' | 'confirmed' | 'failed',
-    notes: ''
+    notes: '',
+    pending_month: ''
   });
 
   const { data: payments = [], isLoading: isLoadingPayments } = useQuery<Payment[]>({
@@ -122,7 +123,8 @@ export function PaymentsPage() {
         payment_date: new Date().toISOString().split('T')[0],
         payment_method: 'Bank Transfer',
         status: 'confirmed',
-        notes: ''
+        notes: '',
+        pending_month: ''
       });
     }
   });
@@ -188,15 +190,34 @@ export function PaymentsPage() {
                   id="agreement_id" 
                   className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   value={formData.agreement_id} 
-                  onChange={e => {
+                  onChange={async e => {
                     const newAgrId = e.target.value;
-                    const agr = agreements.find(a => a.id === newAgrId);
-                    if (agr) {
-                      const totalPaid = payments.filter(p => p.agreement_id === agr.id && p.status === 'confirmed').reduce((sum, p) => sum + Number(p.amount), 0);
-                      const balance = Math.max(0, agr.agreed_rent - totalPaid);
-                      setFormData({...formData, agreement_id: newAgrId, amount: balance > 0 ? balance.toString() : ''});
+                    if (newAgrId) {
+                      try {
+                        const res = await api.get(`/agreements/${newAgrId}/next-charge`);
+                        if (res.data) {
+                          setFormData({
+                            ...formData, 
+                            agreement_id: newAgrId, 
+                            amount: res.data.total_due.toString(),
+                            pending_month: res.data.billing_month,
+                            notes: `Rent for ${res.data.billing_month}`
+                          });
+                        } else {
+                          setFormData({
+                            ...formData, 
+                            agreement_id: newAgrId, 
+                            amount: '',
+                            pending_month: '',
+                            notes: ''
+                          });
+                        }
+                      } catch (err) {
+                        console.error(err);
+                        setFormData({...formData, agreement_id: newAgrId, amount: '', pending_month: ''});
+                      }
                     } else {
-                      setFormData({...formData, agreement_id: newAgrId});
+                      setFormData({...formData, agreement_id: newAgrId, amount: '', pending_month: ''});
                     }
                   }} 
                   required
@@ -204,15 +225,16 @@ export function PaymentsPage() {
                   <option value="">Select Agreement</option>
                   {agreements.map(a => {
                     const prop = properties.find(p => p.id === a.property_id);
-                    const totalPaid = payments.filter(p => p.agreement_id === a.id && p.status === 'confirmed').reduce((sum, p) => sum + Number(p.amount), 0);
-                    const balance = Math.max(0, a.agreed_rent - totalPaid);
                     return (
                       <option key={a.id} value={a.id}>
-                        Agreement for {prop?.name || 'Unknown Property'} (Balance: ₹{balance.toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                        Agreement for {prop?.name || 'Unknown Property'}
                       </option>
                     )
                   })}
                 </select>
+                {formData.pending_month && (
+                  <p className="text-xs text-blue-600 font-medium mt-1">Pending Rent for: {formData.pending_month}</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

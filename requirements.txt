@@ -13,3 +13,4 @@ python-dotenv>=1.0.1
 python-multipart>=0.0.9
 fastapi-mail>=1.4.1
 apscheduler>=3.10.4
+razorpay>=1.4.1

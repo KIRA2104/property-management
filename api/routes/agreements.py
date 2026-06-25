@@ -384,3 +384,48 @@ async def delete_agreement(
 
     await db.commit()
     return None
+
+
+from pydantic import BaseModel
+from models.rent_charge import RentChargeStatus
+from datetime import timedelta
+
+class NextChargeOut(BaseModel):
+    id: UUID
+    billing_month: str
+    total_due: float
+
+@router.get("/{id}/next-charge", response_model=Optional[NextChargeOut])
+async def get_next_charge(
+    id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from sqlalchemy import or_
+    charge_result = await db.execute(
+        select(RentCharge)
+        .where(
+            RentCharge.agreement_id == id,
+            RentCharge.owner_id == current_user.id,
+            RentCharge.deleted_at == None,
+            or_(
+                RentCharge.status.in_([RentChargeStatus.due, RentChargeStatus.overdue, RentChargeStatus.partial]),
+                ((RentCharge.status == RentChargeStatus.upcoming) & (RentCharge.due_date <= date.today() + timedelta(days=7)))
+            )
+        )
+        .order_by(RentCharge.due_date.asc())
+        .limit(1)
+    )
+    charge = charge_result.scalars().first()
+    if not charge:
+        return None
+        
+    from datetime import datetime
+    month_date = datetime.strptime(charge.billing_month, "%Y-%m")
+    formatted_month = month_date.strftime("%B %Y")
+    
+    return NextChargeOut(
+        id=charge.id,
+        billing_month=formatted_month,
+        total_due=float(charge.rent_amount + charge.late_fee - charge.amount_paid)
+    )

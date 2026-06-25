@@ -19,7 +19,8 @@ export default defineConfig({
       '/tenants': 'http://127.0.0.1:8000',
       '/agreements': 'http://127.0.0.1:8000',
       '/payments': 'http://127.0.0.1:8000',
-      '/dashboard': 'http://127.0.0.1:8000'
+      '/dashboard': 'http://127.0.0.1:8000',
+      '/public': 'http://127.0.0.1:8000'
     }
   }
 })

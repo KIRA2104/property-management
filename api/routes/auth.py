@@ -25,7 +25,58 @@ from core.security import (
 from core.rate_limit import limiter
 from api.deps import get_current_user
 
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+import os
+import secrets
+from pydantic import BaseModel
+
+class GoogleLoginRequest(BaseModel):
+    credential: str
+
 router = APIRouter()
+
+@router.post("/google", response_model=Token)
+async def google_login(request: GoogleLoginRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        # Avoid crashing if GOOGLE_CLIENT_ID is not set during development/initial setup
+        client_id = os.getenv("GOOGLE_CLIENT_ID")
+        
+        idinfo = id_token.verify_oauth2_token(
+            request.credential,
+            google_requests.Request(),
+            client_id
+        )
+        email = idinfo.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="No email provided by Google")
+            
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalars().first()
+        
+        if not user:
+            # Create user with a random secure password
+            random_pass = secrets.token_urlsafe(32)
+            username = email.split("@")[0] + "_" + secrets.token_hex(4)
+            user = User(
+                email=email,
+                username=username,
+                hashed_password=get_password_hash(random_pass),
+                is_active=True,
+                is_superuser=False,
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+            
+        return {
+            "access_token": create_access_token(user.id),
+            "refresh_token": create_refresh_token(user.id),
+            "token_type": "bearer",
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid Google token: {str(e)}")
+
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)

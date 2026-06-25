@@ -15,6 +15,8 @@ from models.user import User
 from schemas.dashboard import DashboardData
 from api.deps import get_current_user
 from tasks.scheduler import process_rent_reminders
+
+# pyrefly: ignore [missing-import]
 from sqlalchemy.ext.asyncio import AsyncSession
 from api.deps import get_db
 
